@@ -1,0 +1,160 @@
+[diff "ada"]
+	xfuncname = "!^(.*[ \t])?(is[ \t]+new|renames|is[ \t]+separate)([ \t].*)?$\n"
+	xfuncname = "!^[ \t]*with[ \t].*$\n"
+	xfuncname = "^[ \t]*((procedure|function)[ \t]+.*)$\n"
+	xfuncname = "^[ \t]*((package|protected|task)[ \t]+.*)$"
+	wordRegex = "[a-zA-Z][a-zA-Z0-9_]*"
+	wordRegex = "|[-+]?[0-9][0-9#_.aAbBcCdDeEfF]*([eE][+-]?[0-9_]+)?"
+	wordRegex = "|=>|\\.\\.|\\*\\*|:=|/=|>=|<=|<<|>>|<>"
+
+[diff "fortran"]
+	xfuncname = "!^([C*]|[ \t]*!)\n"
+	xfuncname = "!^[ \t]*MODULE[ \t]+PROCEDURE[ \t]\n"
+	xfuncname = "^[ \t]*((END[ \t]+)?(PROGRAM|MODULE|BLOCK[ \t]+DATA"
+	xfuncname = "|([^'\" \t]+[ \t]+)*(SUBROUTINE|FUNCTION))[ \t]+[A-Z].*)$"
+	wordRegex = "[a-zA-Z][a-zA-Z0-9_]*"
+	wordRegex = "|\\.([Ee][Qq]|[Nn][Ee]|[Gg][TtEe]|[Ll][TtEe]|[Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[Aa][Nn][Dd]|[Oo][Rr]|[Nn]?[Ee][Qq][Vv]|[Nn][Oo][Tt])\\."
+	; numbers and format statements like 2E14.4, or ES12.6, 9X.
+	; Don't worry about format statements without leading digits since
+	; they would have been matched above as a variable anyway.
+	wordRegex = "|[-+]?[0-9.]+([AaIiDdEeFfLlTtXx][Ss]?[-+]?[0-9.]*)?(_[a-zA-Z0-9][a-zA-Z0-9_]*)?"
+	wordRegex = "|//|\\*\\*|::|[/<>=]="
+
+[diff "fountain"]
+	xfuncname = "^((\\.[^.]|(int|ext|est|int\\.?/ext|i/e)[. ]).*)$"
+	wordRegex = "[^ \t-]+"
+
+[diff "golang"]
+	; Functions
+	xfuncname = "^[ \t]*(func[ \t]*.*(\\{[ \t]*)?)\n"
+	; Structs and interfaces
+	xfuncname = "^[ \t]*(type[ \t].*(struct|interface)[ \t]*(\\{[ \t]*)?)"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.eE]+i?|0[xX]?[0-9a-fA-F]+i?"
+	wordRegex = "|[-+*/<>%&^|=!:]=|--|\\+\\+|<<=?|>>=?|&\\^=?|&&|\\|\\||<-|\\.{3}"
+
+[diff "html"]
+	xfuncname = "^[ \t]*(<[Hh][1-6]([ \t].*)?>.*)$"
+	wordRegex = "[^<>= \t]+"
+
+[diff "java"]
+	xfuncname = "!^[ \t]*(catch|do|for|if|instanceof|new|return|switch|throw|while)\n"
+	xfuncname = "^[ \t]*(([A-Za-z_][A-Za-z_0-9]*[ \t]+)+[A-Za-z_][A-Za-z_0-9]*[ \t]*\\([^;]*)$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lL]?"
+	wordRegex = "|[-+*/<>%&^|=!]="
+	wordRegex = "|--|\\+\\+|<<=?|>>>?=?|&&|\\|\\|"
+
+[diff "matlab"]
+	xfuncname = "^[[:space:]]*((classdef|function)[[:space:]].*)$|^%%[[:space:]].*$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*|[-+0-9.e]+|[=~<>]=|\\.[*/\\^']|\\|\\||&&"
+
+[diff "objc"]
+	; Negate C statements that can look like functions
+	xfuncname = "!^[ \t]*(do|for|if|else|return|switch|while)\n"
+	; Objective-C methods
+	xfuncname = "^[ \t]*([-+][ \t]*\\([ \t]*[A-Za-z_][A-Za-z_0-9* \t]*\\)[ \t]*[A-Za-z_].*)$\n"
+	; C functions
+	xfuncname = "^[ \t]*(([A-Za-z_][A-Za-z_0-9]*[ \t]+)+[A-Za-z_][A-Za-z_0-9]*[ \t]*\\([^;]*)$\n"
+	; Objective-C class/protocol definitions
+	xfuncname = "^(@(implementation|interface|protocol)[ \t].*)$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lL]?"
+	wordRegex = "|[-+*/<>%&^|=!]=|--|\\+\\+|<<=?|>>=?|&&|\\|\\||::|->"
+
+[diff "pascal"]
+	xfuncname = "^(((class[ \t]+)?(procedure|function)|constructor|destructor|interface|"
+	xfuncname = "implementation|initialization|finalization)[ \t]*.*)$"
+	xfuncname = "\n"
+	xfuncname = "^(.*=[ \t]*(class|record).*)$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+|0[xXbB]?[0-9a-fA-F]+"
+	wordRegex = "|<>|<=|>=|:=|\\.\\."
+
+[diff "perl"]
+	xfuncname = "^package .*\n"
+	xfuncname = "^sub [[:alnum:]_':]+[ \t]*"
+		xfuncname = "(\\([^)]*\\)[ \t]*)?" ; prototype
+		; Attributes.  A regex can't count nested parentheses,
+		; so just slurp up whatever we see, taking care not
+		; to accept lines like "sub foo; # defined elsewhere".
+		;
+		; An attribute could contain a semicolon, but at that
+		; point it seems reasonable enough to give up.
+		xfuncname = "(:[^;#]*)?"
+		xfuncname = "(\\{[ \t]*)?" ; brace can come here or on the next line
+		xfuncname = "(#.*)?$\n" ; comment
+	xfuncname = "^(BEGIN|END|INIT|CHECK|UNITCHECK|AUTOLOAD|DESTROY)[ \t]*"
+		xfuncname = "(\\{[ \t]*)?" ; brace can come here or on the next line
+		xfuncname = "(#.*)?$\n"
+	xfuncname = "^=head[0-9] .*" ; POD
+	wordRegex = "[[:alpha:]_'][[:alnum:]_']*"
+	wordRegex = "|0[xb]?[0-9a-fA-F_]*"
+	; taking care not to interpret 3..5 as (3.)(.5)
+	wordRegex = "|[0-9a-fA-F_]+(\\.[0-9a-fA-F_]+)?([eE][-+]?[0-9_]+)?"
+	wordRegex = "|=>|-[rwxoRWXOezsfdlpSugkbctTBMAC>]|~~|::"
+	wordRegex = "|&&=|\\|\\|=|//=|\\*\\*="
+	wordRegex = "|&&|\\|\\||//|\\+\\+|--|\\*\\*|\\.\\.\\.?"
+	wordRegex = "|[-+*/%.^&<>=!|]="
+	wordRegex = "|=~|!~"
+	wordRegex = "|<<|<>|<=>|>>"
+
+[diff "php"]
+	xfuncname = "^[\t ]*(((public|protected|private|static)[\t ]+)*function.*)$\n"
+	xfuncname = "^[\t ]*((((final|abstract)[\t ]+)?class|interface|trait).*)$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+|0[xXbB]?[0-9a-fA-F]+"
+	wordRegex = "|[-+*/<>%&^|=!.]=|--|\\+\\+|<<=?|>>=?|===|&&|\\|\\||::|->"
+
+[diff "python"]
+	xfuncname = "^[ \t]*((class|def)[ \t].*)$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+[jJlL]?|0[xX]?[0-9a-fA-F]+[lL]?"
+	wordRegex = "|[-+*/<>%&^|=!]=|//=?|<<=?|>>=?|\\*\\*=?"
+
+[diff "ruby"]
+	xfuncname = "^[ \t]*((class|module|def)[ \t].*)$"
+	wordRegex = "(@|@@|\\$)?[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+|0[xXbB]?[0-9a-fA-F]+|\\?(\\\\C-)?(\\\\M-)?."
+	wordRegex = "|//=?|[-+*/<>%&^|=!]=|<<=?|>>=?|===|\\.{1,3}|::|[!=]~"
+
+[diff "bibtex"]
+	xfuncname = "(@[a-zA-Z]{1,}[ \t]*\\{{0,1}[ \t]*[^ \t\"@',\\#}{~%]*).*$"
+	wordRegex = "[={}\"]|[^={}\" \t]+"
+
+[diff "tex"]
+	xfuncname = "^(\\\\((sub)*section|chapter|part)\\*{0,1}\\{.*)$"
+	wordRegex = "\\\\[a-zA-Z@]+|\\\\.|[a-zA-Z0-9\\x80-\\xff]+"
+
+[diff "cpp"]
+	; Jump targets or access declarations
+	xfuncname = "!^[ \t]*[A-Za-z_][A-Za-z_0-9]*:[[:space:]]*($|/[/*])\n"
+	; functions/methods, variables, and compounds at top level
+	xfuncname = "^((::[[:space:]]*)?[A-Za-z_].*)$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lLuU]*"
+	wordRegex = "|[-+*/<>%&^|=!]=|--|\\+\\+|<<=?|>>=?|&&|\\|\\||::|->\\*?|\\.\\*"
+
+[diff "csharp"]
+	; Keywords
+	xfuncname = "!^[ \t]*(do|while|for|if|else|instanceof|new|return|switch|case|throw|catch|using)\n"
+	; Methods and constructors
+	xfuncname = "^[ \t]*(((static|public|internal|private|protected|new|virtual|sealed|override|unsafe|async)[ \t]+)*[][<>@.~_[:alnum:]]+[ \t]+[<>@._[:alnum:]]+[ \t]*\\(.*\\))[ \t]*$\n"
+	; Properties
+	xfuncname = "^[ \t]*(((static|public|internal|private|protected|new|virtual|sealed|override|unsafe)[ \t]+)*[][<>@.~_[:alnum:]]+[ \t]+[@._[:alnum:]]+)[ \t]*$\n"
+	; Type definitions
+	xfuncname = "^[ \t]*(((static|public|internal|private|protected|new|unsafe|sealed|abstract|partial)[ \t]+)*(class|enum|interface|struct)[ \t]+.*)$\n"
+	; Namespace
+	xfuncname = "^[ \t]*(namespace[ \t]+.*)$"
+	wordRegex = "[a-zA-Z_][a-zA-Z0-9_]*"
+	wordRegex = "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lL]?"
+	wordRegex = "|[-+*/<>%&^|=!]=|--|\\+\\+|<<=?|>>=?|&&|\\|\\||::|->"
+
+[diff "css"]
+	xfuncname = "![:;][[:space:]]*$\n"
+	xfuncname = "^[_a-z0-9].*$"
+	; This regex comes from W3C CSS specs. Should theoretically also
+	; allow ISO 10646 characters U+00A0 and higher,
+	; but they are not handled in this regex.
+	wordRegex = "-?[_a-zA-Z][-_a-zA-Z0-9]*" ; identifiers
+	wordRegex = "|-?[0-9]+|\\#[0-9a-fA-F]+" ; numbers

@@ -2,178 +2,123 @@
 #include "config.h"
 #include "userdiff.h"
 #include "attr.h"
+#include "exec-cmd.h"
+#include "repository.h"
 
 static struct userdiff_driver *drivers;
 static int ndrivers;
 static int drivers_alloc;
+static struct config_set gm_config;
+static int config_init;
+struct userdiff_driver *builtin_drivers;
+static int builtin_drivers_size;
 
-#define PATTERNS(name, pattern, word_regex)			\
-	{ name, NULL, -1, { pattern, REG_EXTENDED },		\
-	  word_regex "|[^[:space:]]|[\xc0-\xff][\x80-\xbf]+" }
-#define IPATTERN(name, pattern, word_regex)			\
-	{ name, NULL, -1, { pattern, REG_EXTENDED | REG_ICASE }, \
-	  word_regex "|[^[:space:]]|[\xc0-\xff][\x80-\xbf]+" }
-static struct userdiff_driver builtin_drivers[] = {
-IPATTERN("ada",
-	 "!^(.*[ \t])?(is[ \t]+new|renames|is[ \t]+separate)([ \t].*)?$\n"
-	 "!^[ \t]*with[ \t].*$\n"
-	 "^[ \t]*((procedure|function)[ \t]+.*)$\n"
-	 "^[ \t]*((package|protected|task)[ \t]+.*)$",
-	 /* -- */
-	 "[a-zA-Z][a-zA-Z0-9_]*"
-	 "|[-+]?[0-9][0-9#_.aAbBcCdDeEfF]*([eE][+-]?[0-9_]+)?"
-	 "|=>|\\.\\.|\\*\\*|:=|/=|>=|<=|<<|>>|<>"),
-IPATTERN("fortran",
-	 "!^([C*]|[ \t]*!)\n"
-	 "!^[ \t]*MODULE[ \t]+PROCEDURE[ \t]\n"
-	 "^[ \t]*((END[ \t]+)?(PROGRAM|MODULE|BLOCK[ \t]+DATA"
-		"|([^'\" \t]+[ \t]+)*(SUBROUTINE|FUNCTION))[ \t]+[A-Z].*)$",
-	 /* -- */
-	 "[a-zA-Z][a-zA-Z0-9_]*"
-	 "|\\.([Ee][Qq]|[Nn][Ee]|[Gg][TtEe]|[Ll][TtEe]|[Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[Aa][Nn][Dd]|[Oo][Rr]|[Nn]?[Ee][Qq][Vv]|[Nn][Oo][Tt])\\."
-	 /* numbers and format statements like 2E14.4, or ES12.6, 9X.
-	  * Don't worry about format statements without leading digits since
-	  * they would have been matched above as a variable anyway. */
-	 "|[-+]?[0-9.]+([AaIiDdEeFfLlTtXx][Ss]?[-+]?[0-9.]*)?(_[a-zA-Z0-9][a-zA-Z0-9_]*)?"
-	 "|//|\\*\\*|::|[/<>=]="),
-IPATTERN("fountain", "^((\\.[^.]|(int|ext|est|int\\.?/ext|i/e)[. ]).*)$",
-	 "[^ \t-]+"),
-PATTERNS("golang",
-	 /* Functions */
-	 "^[ \t]*(func[ \t]*.*(\\{[ \t]*)?)\n"
-	 /* Structs and interfaces */
-	 "^[ \t]*(type[ \t].*(struct|interface)[ \t]*(\\{[ \t]*)?)",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.eE]+i?|0[xX]?[0-9a-fA-F]+i?"
-	 "|[-+*/<>%&^|=!:]=|--|\\+\\+|<<=?|>>=?|&\\^=?|&&|\\|\\||<-|\\.{3}"),
-PATTERNS("html", "^[ \t]*(<[Hh][1-6]([ \t].*)?>.*)$",
-	 "[^<>= \t]+"),
-PATTERNS("java",
-	 "!^[ \t]*(catch|do|for|if|instanceof|new|return|switch|throw|while)\n"
-	 "^[ \t]*(([A-Za-z_][A-Za-z_0-9]*[ \t]+)+[A-Za-z_][A-Za-z_0-9]*[ \t]*\\([^;]*)$",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lL]?"
-	 "|[-+*/<>%&^|=!]="
-	 "|--|\\+\\+|<<=?|>>>?=?|&&|\\|\\|"),
-PATTERNS("matlab",
-	 "^[[:space:]]*((classdef|function)[[:space:]].*)$|^%%[[:space:]].*$",
-	 "[a-zA-Z_][a-zA-Z0-9_]*|[-+0-9.e]+|[=~<>]=|\\.[*/\\^']|\\|\\||&&"),
-PATTERNS("objc",
-	 /* Negate C statements that can look like functions */
-	 "!^[ \t]*(do|for|if|else|return|switch|while)\n"
-	 /* Objective-C methods */
-	 "^[ \t]*([-+][ \t]*\\([ \t]*[A-Za-z_][A-Za-z_0-9* \t]*\\)[ \t]*[A-Za-z_].*)$\n"
-	 /* C functions */
-	 "^[ \t]*(([A-Za-z_][A-Za-z_0-9]*[ \t]+)+[A-Za-z_][A-Za-z_0-9]*[ \t]*\\([^;]*)$\n"
-	 /* Objective-C class/protocol definitions */
-	 "^(@(implementation|interface|protocol)[ \t].*)$",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lL]?"
-	 "|[-+*/<>%&^|=!]=|--|\\+\\+|<<=?|>>=?|&&|\\|\\||::|->"),
-PATTERNS("pascal",
-	 "^(((class[ \t]+)?(procedure|function)|constructor|destructor|interface|"
-		"implementation|initialization|finalization)[ \t]*.*)$"
-	 "\n"
-	 "^(.*=[ \t]*(class|record).*)$",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+|0[xXbB]?[0-9a-fA-F]+"
-	 "|<>|<=|>=|:=|\\.\\."),
-PATTERNS("perl",
-	 "^package .*\n"
-	 "^sub [[:alnum:]_':]+[ \t]*"
-		"(\\([^)]*\\)[ \t]*)?" /* prototype */
-		/*
-		 * Attributes.  A regex can't count nested parentheses,
-		 * so just slurp up whatever we see, taking care not
-		 * to accept lines like "sub foo; # defined elsewhere".
-		 *
-		 * An attribute could contain a semicolon, but at that
-		 * point it seems reasonable enough to give up.
-		 */
-		"(:[^;#]*)?"
-		"(\\{[ \t]*)?" /* brace can come here or on the next line */
-		"(#.*)?$\n" /* comment */
-	 "^(BEGIN|END|INIT|CHECK|UNITCHECK|AUTOLOAD|DESTROY)[ \t]*"
-		"(\\{[ \t]*)?" /* brace can come here or on the next line */
-		"(#.*)?$\n"
-	 "^=head[0-9] .*",	/* POD */
-	 /* -- */
-	 "[[:alpha:]_'][[:alnum:]_']*"
-	 "|0[xb]?[0-9a-fA-F_]*"
-	 /* taking care not to interpret 3..5 as (3.)(.5) */
-	 "|[0-9a-fA-F_]+(\\.[0-9a-fA-F_]+)?([eE][-+]?[0-9_]+)?"
-	 "|=>|-[rwxoRWXOezsfdlpSugkbctTBMAC>]|~~|::"
-	 "|&&=|\\|\\|=|//=|\\*\\*="
-	 "|&&|\\|\\||//|\\+\\+|--|\\*\\*|\\.\\.\\.?"
-	 "|[-+*/%.^&<>=!|]="
-	 "|=~|!~"
-	 "|<<|<>|<=>|>>"),
-PATTERNS("php",
-	 "^[\t ]*(((public|protected|private|static)[\t ]+)*function.*)$\n"
-	 "^[\t ]*((((final|abstract)[\t ]+)?class|interface|trait).*)$",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+|0[xXbB]?[0-9a-fA-F]+"
-	 "|[-+*/<>%&^|=!.]=|--|\\+\\+|<<=?|>>=?|===|&&|\\|\\||::|->"),
-PATTERNS("python", "^[ \t]*((class|def)[ \t].*)$",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+[jJlL]?|0[xX]?[0-9a-fA-F]+[lL]?"
-	 "|[-+*/<>%&^|=!]=|//=?|<<=?|>>=?|\\*\\*=?"),
-	 /* -- */
-PATTERNS("ruby", "^[ \t]*((class|module|def)[ \t].*)$",
-	 /* -- */
-	 "(@|@@|\\$)?[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+|0[xXbB]?[0-9a-fA-F]+|\\?(\\\\C-)?(\\\\M-)?."
-	 "|//=?|[-+*/<>%&^|=!]=|<<=?|>>=?|===|\\.{1,3}|::|[!=]~"),
-PATTERNS("bibtex", "(@[a-zA-Z]{1,}[ \t]*\\{{0,1}[ \t]*[^ \t\"@',\\#}{~%]*).*$",
-	 "[={}\"]|[^={}\" \t]+"),
-PATTERNS("tex", "^(\\\\((sub)*section|chapter|part)\\*{0,1}\\{.*)$",
-	 "\\\\[a-zA-Z@]+|\\\\.|[a-zA-Z0-9\x80-\xff]+"),
-PATTERNS("cpp",
-	 /* Jump targets or access declarations */
-	 "!^[ \t]*[A-Za-z_][A-Za-z_0-9]*:[[:space:]]*($|/[/*])\n"
-	 /* functions/methods, variables, and compounds at top level */
-	 "^((::[[:space:]]*)?[A-Za-z_].*)$",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lLuU]*"
-	 "|[-+*/<>%&^|=!]=|--|\\+\\+|<<=?|>>=?|&&|\\|\\||::|->\\*?|\\.\\*"),
-PATTERNS("csharp",
-	 /* Keywords */
-	 "!^[ \t]*(do|while|for|if|else|instanceof|new|return|switch|case|throw|catch|using)\n"
-	 /* Methods and constructors */
-	 "^[ \t]*(((static|public|internal|private|protected|new|virtual|sealed|override|unsafe|async)[ \t]+)*[][<>@.~_[:alnum:]]+[ \t]+[<>@._[:alnum:]]+[ \t]*\\(.*\\))[ \t]*$\n"
-	 /* Properties */
-	 "^[ \t]*(((static|public|internal|private|protected|new|virtual|sealed|override|unsafe)[ \t]+)*[][<>@.~_[:alnum:]]+[ \t]+[@._[:alnum:]]+)[ \t]*$\n"
-	 /* Type definitions */
-	 "^[ \t]*(((static|public|internal|private|protected|new|unsafe|sealed|abstract|partial)[ \t]+)*(class|enum|interface|struct)[ \t]+.*)$\n"
-	 /* Namespace */
-	 "^[ \t]*(namespace[ \t]+.*)$",
-	 /* -- */
-	 "[a-zA-Z_][a-zA-Z0-9_]*"
-	 "|[-+0-9.e]+[fFlL]?|0[xXbB]?[0-9a-fA-F]+[lL]?"
-	 "|[-+*/<>%&^|=!]=|--|\\+\\+|<<=?|>>=?|&&|\\|\\||::|->"),
-IPATTERN("css",
-	 "![:;][[:space:]]*$\n"
-	 "^[_a-z0-9].*$",
-	 /* -- */
-	 /*
-	  * This regex comes from W3C CSS specs. Should theoretically also
-	  * allow ISO 10646 characters U+00A0 and higher,
-	  * but they are not handled in this regex.
-	  */
-	 "-?[_a-zA-Z][-_a-zA-Z0-9]*" /* identifiers */
-	 "|-?[0-9]+|\\#[0-9a-fA-F]+" /* numbers */
-),
-{ "default", NULL, -1, { NULL, 0 } },
-};
-#undef PATTERNS
-#undef IPATTERN
+static int userdiff_config_init(void)
+{
+	int ret = -1;
+	if (!config_init) {
+		git_configset_init(&gm_config);
+		if (the_repository && the_repository->gitdir)
+			ret = git_configset_add_file(&gm_config, git_pathdup("userdiff"));
+
+		// if .git/userdiff does not exist, set config_init to be -1
+		if (ret == 0)
+			config_init = 1;
+		else
+			config_init = -1;
+
+		builtin_drivers = (struct userdiff_driver *) malloc(sizeof(struct userdiff_driver));
+		builtin_drivers->name = "default";
+		builtin_drivers->external = NULL;
+		builtin_drivers->binary = -1;
+		builtin_drivers->funcname.pattern = NULL;
+		builtin_drivers->funcname.cflags = 0;
+		builtin_drivers->word_regex = NULL;
+		builtin_drivers->textconv_want_cache = 0;
+		builtin_drivers->textconv = NULL;
+		builtin_drivers->textconv_cache = NULL;
+		builtin_drivers_size = 1;
+	}
+	return 0;
+}
+
+static char* join_strings(const struct string_list *strings)
+{
+	char* str;
+	int i, len, length = 0;
+	if (!strings)
+		return NULL;
+
+	for (i = 0; i < strings->nr; i++)
+		length += strlen(strings->items[i].string);
+
+	str = (char *) malloc(length + 1);
+	length = 0;
+
+	for (i = 0; i < strings->nr; i++) {
+		len = strlen(strings->items[i].string);
+		memcpy(str + length, strings->items[i].string, len);
+		length += len;
+	}
+	str[length] = '\0';
+	return str;
+}
+
+static struct userdiff_driver *userdiff_find_builtin_by_namelen(const char *k, int len)
+{
+	int i, key_length, word_regex_size;
+	char *xfuncname_key, *word_regex_key, *xfuncname_value, *word_regex_value, *word_regex, *name;
+	struct userdiff_driver *builtin_driver;
+	char word_regex_extra[] = "|[^[:space:]]|[\xc0-\xff][\x80-\xbf]+";
+	userdiff_config_init();
+	name = (char *) malloc(len + 1);
+	memcpy(name, k, len);
+	name[len] = '\0';
+
+	// look up builtin_driver
+	for (i = 0; i < builtin_drivers_size; i++) {
+		struct userdiff_driver *drv = builtin_drivers + i;
+		if (!strncmp(drv->name, name, len) && !drv->name[len])
+			return drv;
+	}
+
+	// if .git/userdiff does not exist and name is not "default", return NULL
+	if (config_init == -1) {
+		return NULL;
+	}
+
+	builtin_drivers_size++;
+	builtin_drivers = realloc(builtin_drivers, builtin_drivers_size * sizeof(struct userdiff_driver));
+	builtin_driver = builtin_drivers + builtin_drivers_size - 1;
+
+	// load xfuncname and wordRegex from userdiff config file
+	key_length = len + 16;
+	xfuncname_key = (char *) malloc(key_length);
+	word_regex_key = (char *) malloc(key_length);
+	snprintf(xfuncname_key, key_length, "diff.%s.xfuncname", name);
+	snprintf(word_regex_key, key_length, "diff.%s.wordRegex", name);
+	xfuncname_value = join_strings(git_configset_get_value_multi(&gm_config, xfuncname_key));
+	word_regex_value = join_strings(git_configset_get_value_multi(&gm_config, word_regex_key));
+	free(xfuncname_key);
+	free(word_regex_key);
+	if (!xfuncname_value || !word_regex_value)
+		return NULL;
+
+	builtin_driver->name = name;
+	builtin_driver->external = NULL;
+	builtin_driver->binary = -1;
+	builtin_driver->funcname.pattern = xfuncname_value;
+	builtin_driver->funcname.cflags = REG_EXTENDED;
+	builtin_driver->textconv_want_cache = 0;
+	builtin_driver->textconv = NULL;
+	builtin_driver->textconv_cache = NULL;
+	word_regex_size = strlen(word_regex_value) + strlen(word_regex_extra) + 1;
+	word_regex = (char *) malloc(word_regex_size);
+	snprintf(word_regex, word_regex_size,
+			"%s%s", word_regex_value, word_regex_extra);
+	builtin_driver->word_regex = word_regex;
+	return builtin_driver;
+}
 
 static struct userdiff_driver driver_true = {
 	"diff=true",
@@ -197,12 +142,7 @@ static struct userdiff_driver *userdiff_find_by_namelen(const char *k, int len)
 		if (!strncmp(drv->name, k, len) && !drv->name[len])
 			return drv;
 	}
-	for (i = 0; i < ARRAY_SIZE(builtin_drivers); i++) {
-		struct userdiff_driver *drv = builtin_drivers + i;
-		if (!strncmp(drv->name, k, len) && !drv->name[len])
-			return drv;
-	}
-	return NULL;
+	return userdiff_find_builtin_by_namelen(k, len);
 }
 
 static int parse_funcname(struct userdiff_funcname *f, const char *k,
