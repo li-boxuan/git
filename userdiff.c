@@ -96,19 +96,12 @@ static struct userdiff_driver *userdiff_find_builtin_by_namelen(const char *k, i
 	if (!xfuncname_value || !word_regex_value)
 		return NULL;
 
-	builtin_driver->name = name;
-	builtin_driver->external = NULL;
-	builtin_driver->binary = -1;
-	builtin_driver->funcname.pattern = xfuncname_value;
-	builtin_driver->funcname.cflags = REG_EXTENDED;
-	builtin_driver->textconv_want_cache = 0;
-	builtin_driver->textconv = NULL;
-	builtin_driver->textconv_cache = NULL;
 	word_regex_size = strlen(word_regex_value) + strlen(word_regex_extra) + 1;
 	word_regex = (char *) malloc(word_regex_size);
 	snprintf(word_regex, word_regex_size,
 			"%s%s", word_regex_value, word_regex_extra);
-	builtin_driver->word_regex = word_regex;
+	*builtin_driver = (struct userdiff_driver) {
+			name, NULL, -1, { xfuncname_value, REG_EXTENDED }, word_regex };
 	return builtin_driver;
 }
 
