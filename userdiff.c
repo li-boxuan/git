@@ -28,15 +28,7 @@ static int userdiff_config_init(void)
 			config_init = -1;
 
 		builtin_drivers = (struct userdiff_driver *) malloc(sizeof(struct userdiff_driver));
-		builtin_drivers->name = "default";
-		builtin_drivers->external = NULL;
-		builtin_drivers->binary = -1;
-		builtin_drivers->funcname.pattern = NULL;
-		builtin_drivers->funcname.cflags = 0;
-		builtin_drivers->word_regex = NULL;
-		builtin_drivers->textconv_want_cache = 0;
-		builtin_drivers->textconv = NULL;
-		builtin_drivers->textconv_cache = NULL;
+		*builtin_drivers = (struct userdiff_driver) { "default", NULL, -1, { NULL, 0 } };
 		builtin_drivers_size = 1;
 	}
 	return 0;
