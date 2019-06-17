@@ -6,6 +6,7 @@
 	wordRegex = "[a-zA-Z][a-zA-Z0-9_]*"
 	wordRegex = "|[-+]?[0-9][0-9#_.aAbBcCdDeEfF]*([eE][+-]?[0-9_]+)?"
 	wordRegex = "|=>|\\.\\.|\\*\\*|:=|/=|>=|<=|<<|>>|<>"
+	regIcase = true
 
 [diff "fortran"]
 	xfuncname = "!^([C*]|[ \t]*!)\n"
@@ -19,10 +20,12 @@
 	; they would have been matched above as a variable anyway.
 	wordRegex = "|[-+]?[0-9.]+([AaIiDdEeFfLlTtXx][Ss]?[-+]?[0-9.]*)?(_[a-zA-Z0-9][a-zA-Z0-9_]*)?"
 	wordRegex = "|//|\\*\\*|::|[/<>=]="
+	regIcase = true
 
 [diff "fountain"]
 	xfuncname = "^((\\.[^.]|(int|ext|est|int\\.?/ext|i/e)[. ]).*)$"
 	wordRegex = "[^ \t-]+"
+	regIcase = true
 
 [diff "golang"]
 	; Functions
@@ -158,3 +161,4 @@
 	; but they are not handled in this regex.
 	wordRegex = "-?[_a-zA-Z][-_a-zA-Z0-9]*" ; identifiers
 	wordRegex = "|-?[0-9]+|\\#[0-9a-fA-F]+" ; numbers
+	regIcase = true

@@ -58,8 +58,9 @@ static char* join_strings(const struct string_list *strings)
 
 static struct userdiff_driver *userdiff_find_builtin_by_namelen(const char *k, int len)
 {
-	int i, key_length, word_regex_size;
-	char *xfuncname_key, *word_regex_key, *xfuncname_value, *word_regex_value, *word_regex, *name;
+	int i, key_length, word_regex_size, ret, reg_icase, cflags;
+	char *xfuncname_key, *word_regex_key, *ipattern_key;
+	char *xfuncname_value, *word_regex_value, *word_regex, *name;
 	struct userdiff_driver *builtin_driver;
 	char word_regex_extra[] = "|[^[:space:]]|[\xc0-\xff][\x80-\xbf]+";
 	userdiff_config_init();
@@ -83,12 +84,24 @@ static struct userdiff_driver *userdiff_find_builtin_by_namelen(const char *k, i
 	key_length = len + 16;
 	xfuncname_key = (char *) malloc(key_length);
 	word_regex_key = (char *) malloc(key_length);
+	ipattern_key = (char *) malloc(key_length - 1);
 	snprintf(xfuncname_key, key_length, "diff.%s.xfuncname", name);
 	snprintf(word_regex_key, key_length, "diff.%s.wordRegex", name);
+	snprintf(ipattern_key, key_length - 1, "diff.%s.regIcase", name);
+
 	xfuncname_value = join_strings(git_configset_get_value_multi(&gm_config, xfuncname_key));
 	word_regex_value = join_strings(git_configset_get_value_multi(&gm_config, word_regex_key));
+
+	ret = git_configset_get_bool(&gm_config, ipattern_key, &reg_icase);
+	// if "regIcase" is not found, do not use REG_ICASE flag
+	if (ret == 1)
+		reg_icase = 0;
+	cflags = reg_icase ? REG_EXTENDED | REG_ICASE : REG_EXTENDED;
+
 	free(xfuncname_key);
 	free(word_regex_key);
+	free(ipattern_key);
+
 	if (!xfuncname_value || !word_regex_value)
 		return NULL;
 
@@ -101,7 +114,7 @@ static struct userdiff_driver *userdiff_find_builtin_by_namelen(const char *k, i
 	builtin_drivers = realloc(builtin_drivers, builtin_drivers_size * sizeof(struct userdiff_driver));
 	builtin_driver = builtin_drivers + builtin_drivers_size - 1;
 	*builtin_driver = (struct userdiff_driver) {
-			name, NULL, -1, { xfuncname_value, REG_EXTENDED }, word_regex };
+			name, NULL, -1, { xfuncname_value, cflags }, word_regex };
 	return builtin_driver;
 }
 
