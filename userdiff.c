@@ -79,10 +79,6 @@ static struct userdiff_driver *userdiff_find_builtin_by_namelen(const char *k, i
 		return NULL;
 	}
 
-	builtin_drivers_size++;
-	builtin_drivers = realloc(builtin_drivers, builtin_drivers_size * sizeof(struct userdiff_driver));
-	builtin_driver = builtin_drivers + builtin_drivers_size - 1;
-
 	// load xfuncname and wordRegex from userdiff config file
 	key_length = len + 16;
 	xfuncname_key = (char *) malloc(key_length);
@@ -100,6 +96,10 @@ static struct userdiff_driver *userdiff_find_builtin_by_namelen(const char *k, i
 	word_regex = (char *) malloc(word_regex_size);
 	snprintf(word_regex, word_regex_size,
 			"%s%s", word_regex_value, word_regex_extra);
+
+	builtin_drivers_size++;
+	builtin_drivers = realloc(builtin_drivers, builtin_drivers_size * sizeof(struct userdiff_driver));
+	builtin_driver = builtin_drivers + builtin_drivers_size - 1;
 	*builtin_driver = (struct userdiff_driver) {
 			name, NULL, -1, { xfuncname_value, REG_EXTENDED }, word_regex };
 	return builtin_driver;
